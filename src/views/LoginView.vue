@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Button } from '@/components/ui/button'
+import { useAuthStore } from '@/stores/auth'
 import {
     Card,
     CardContent,
@@ -18,21 +19,13 @@ import { AlertCircle, Loader2 } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-const isLoading = ref(false)
-const email = ref('')
+const username = ref('')
 const password = ref('')
-const error = ref('') // Placeholder for error message
+
+const auth = useAuthStore()
 
 const handleLogin = async () => {
-    isLoading.value = true
-    error.value = ''
-
-    // Simulate API call
-    setTimeout(() => {
-        isLoading.value = false
-        router.push('/dashboard')
-        // error.value = 'Invalid credentials. Please try again.' // Uncomment to test error state
-    }, 2000)
+    await auth.login(username.value, password.value)
 }
 </script>
 
@@ -41,24 +34,24 @@ const handleLogin = async () => {
         <Card class="w-full max-w-md">
             <CardHeader class="space-y-1 text-center">
                 <CardTitle class="text-2xl font-bold tracking-tight text-blue-900">
-                    CarePulse Login
+                    PRS Login
                 </CardTitle>
                 <CardDescription>
                     Enter your credentials to access the healthcare portal
                 </CardDescription>
             </CardHeader>
             <CardContent class="space-y-4">
-                <Alert v-if="error" variant="destructive">
+                <Alert v-if="auth.error" variant="destructive">
                     <AlertCircle class="h-4 w-4" />
                     <AlertTitle>Error</AlertTitle>
                     <AlertDescription>
-                        {{ error }}
+                        {{ auth.error }}
                     </AlertDescription>
                 </Alert>
 
                 <div class="space-y-2">
-                    <Label for="email">Email</Label>
-                    <Input id="email" type="email" placeholder="doctor@hospital.com" v-model="email" />
+<Label for="username">Username</Label>
+<Input id="username" type="text" placeholder="admin / doctor1" v-model="username" />
                 </div>
 
                 <div class="space-y-2">
@@ -76,9 +69,9 @@ const handleLogin = async () => {
                 </div>
             </CardContent>
             <CardFooter>
-                <Button class="w-full bg-blue-700 hover:bg-blue-800" :disabled="isLoading" @click="handleLogin">
-                    <Loader2 v-if="isLoading" class="mr-2 h-4 w-4 animate-spin" />
-                    {{ isLoading ? 'Signing in...' : 'Sign in' }}
+                <Button class="w-full bg-blue-700 hover:bg-blue-800" :disabled="auth.isLoading" @click="handleLogin">
+                    <Loader2 v-if="auth.isLoading" class="mr-2 h-4 w-4 animate-spin" />
+                    {{ auth.isLoading ? 'Signing in...' : 'Sign in' }}
                 </Button>
             </CardFooter>
         </Card>

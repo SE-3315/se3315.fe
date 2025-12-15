@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { usePatientStore } from '@/stores/patient'
+import { useDoctorStore } from '@/stores/doctor'
+import { useDepartmentStore } from '@/stores/department'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -30,6 +33,12 @@ import { toDate } from 'reka-ui/date'
 import { getLocalTimeZone } from '@internationalized/date'
 
 const router = useRouter()
+const patientStore = usePatientStore()
+const doctorStore = useDoctorStore()
+const departmentStore = useDepartmentStore()
+
+const success = ref<string | null>(null)
+const error = ref<string | null>(null)
 
 // Form State
 const formData = ref({
@@ -45,9 +54,7 @@ const formData = ref({
   tags: [] as string[]
 })
 
-// Mock Data
-const doctors = ['Dr. Sarah Smith', 'Dr. Michael Chen', 'Dr. Emily Johnson', 'Dr. James Wilson']
-const departments = ['Cardiology', 'Neurology', 'Pediatrics', 'General Practice']
+// Tags sabit
 const availableTags = ['VIP', 'Chronic Condition', 'Urgent', 'Insurance Pending']
 
 // Date Formatter
@@ -72,7 +79,52 @@ const toggleTag = (tag: string) => {
     formData.value.tags.splice(index, 1)
   }
 }
-</script>
+
+// Validasyon ve ekleme akışı
+const handleSubmit = () => {
+  error.value = null
+  success.value = null
+  // Validasyonlar
+  if (!formData.value.patientId.trim()) {
+    error.value = 'Patient ID is required.'
+    return
+  }
+  if (!formData.value.fullName.trim()) {
+    error.value = 'Full name is required.'
+    return
+  }
+  if (!formData.value.doctor) {
+    error.value = 'Doctor selection is required.'
+    return
+  }
+  if (!formData.value.department) {
+    error.value = 'Department selection is required.'
+    return
+  }
+  // Benzersiz ID kontrolü
+  if (patientStore.patientExists(formData.value.patientId)) {
+    error.value = 'A patient with this ID already exists.'
+    return
+  }
+  // Kayıt ekle
+  patientStore.addPatient({
+    patientId: formData.value.patientId,
+    fullName: formData.value.fullName,
+    gender: formData.value.gender,
+    contactNumber: formData.value.contactNumber,
+    diagnosis: formData.value.diagnosis,
+    visitInfo: formData.value.visitInfo,
+    doctor: formData.value.doctor,
+    department: formData.value.department,
+    date: formData.value.date ? formData.value.date.toString() : undefined,
+    tags: [...formData.value.tags],
+  })
+  success.value = 'Patient registered successfully!'
+  // Formu sıfırla
+  formData.value = {
+    fullName: '', patientId: '', gender: '', contactNumber: '', diagnosis: '', visitInfo: '', doctor: '', department: '', date: undefined, tags: []
+  }
+}</script>
 
 <template>
   <div class="min-h-screen bg-gray-50 pb-12 dark:bg-gray-900">
@@ -96,7 +148,8 @@ const toggleTag = (tag: string) => {
           </CardDescription>
         </CardHeader>
         <CardContent class="space-y-8">
-          
+          <div v-if="error" class="mb-4 text-red-600 bg-red-50 border border-red-200 rounded px-4 py-2">{{ error }}</div>
+          <div v-if="success" class="mb-4 text-green-700 bg-green-50 border border-green-200 rounded px-4 py-2">{{ success }}</div>
           <!-- Section 1: Patient Information -->
           <div class="space-y-4">
             <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider">Patient Information</h3>
@@ -159,28 +212,28 @@ const toggleTag = (tag: string) => {
               <div class="space-y-2">
                 <Label>Assigned Doctor</Label>
                 <Select v-model="formData.doctor">
-                  <SelectTrigger class="w-full">
-                    <SelectValue placeholder="Select doctor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem v-for="doc in doctors" :key="doc" :value="doc">
-                      {{ doc }}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+  <SelectTrigger class="w-full">
+    <SelectValue placeholder="Select doctor" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem v-for="doc in doctorStore.doctors" :key="doc.id" :value="doc.name">
+      {{ doc.name }} ({{ doc.department }})
+    </SelectItem>
+  </SelectContent>
+</Select>
               </div>
               <div class="space-y-2">
                 <Label>Department</Label>
                 <Select v-model="formData.department">
-                  <SelectTrigger class="w-full">
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem v-for="dept in departments" :key="dept" :value="dept">
-                      {{ dept }}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+  <SelectTrigger class="w-full">
+    <SelectValue placeholder="Select department" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem v-for="dept in departmentStore.departments" :key="dept.id" :value="dept.name">
+      {{ dept.name }}
+    </SelectItem>
+  </SelectContent>
+</Select>
               </div>
             </div>
           </div>
@@ -239,7 +292,7 @@ const toggleTag = (tag: string) => {
         </CardContent>
         <CardFooter class="flex justify-between border-t border-gray-100 bg-gray-50/50 px-6 py-4 dark:border-gray-800 dark:bg-gray-800/50">
           <Button variant="outline" @click="goBack">Cancel</Button>
-          <Button class="bg-blue-600 hover:bg-blue-700">
+          <Button class="bg-blue-600 hover:bg-blue-700" @click="handleSubmit">
             <Save class="mr-2 h-4 w-4" />
             Save Record
           </Button>
