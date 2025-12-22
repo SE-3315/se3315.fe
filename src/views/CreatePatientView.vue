@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { usePatientStore } from '@/stores/patient'
 import { useDoctorStore } from '@/stores/doctor'
 import { useDepartmentStore } from '@/stores/department'
@@ -42,87 +42,111 @@ const error = ref<string | null>(null)
 
 // Form State
 const formData = ref({
-  fullName: '',
-  patientId: '',
-  gender: '',
-  contactNumber: '',
-  diagnosis: '',
-  visitInfo: '',
-  doctor: '',
-  department: '',
-  date: undefined as any,
-  tags: [] as string[]
+  firstName: '',
+  lastName: '',
+  nationalId: '',
+  birthDate: '',
+  gender: '' as 'MALE' | 'FEMALE' | 'OTHER' | '',
+  phone: '',
+  email: '',
+  address: '',
+  bloodType: '',
+  allergies: '',
+  chronicConditions: '',
+  insuranceProvider: '',
+  insuranceNumber: '',
+  emergencyContactName: '',
+  emergencyContactPhone: '',
+  primaryDoctorId: '',
+  departmentId: '',
 })
 
-// Tags sabit
-const availableTags = ['VIP', 'Chronic Condition', 'Urgent', 'Insurance Pending']
-
-// Date Formatter
-const formattedDate = computed(() => {
-  if (!formData.value.date) return 'Pick a date'
-  return new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  }).format(toDate(formData.value.date, getLocalTimeZone()))
+// Sayfa yüklendiğinde doktor ve departmanları çek
+onMounted(async () => {
+  try {
+    await Promise.all([
+      doctorStore.fetchDoctors(),
+      departmentStore.fetchDepartments()
+    ])
+  } catch (err) {
+    error.value = 'Failed to load doctors and departments.'
+  }
 })
 
 const goBack = () => {
   router.back()
 }
 
-const toggleTag = (tag: string) => {
-  const index = formData.value.tags.indexOf(tag)
-  if (index === -1) {
-    formData.value.tags.push(tag)
-  } else {
-    formData.value.tags.splice(index, 1)
-  }
-}
-
 // Validasyon ve ekleme akışı
-const handleSubmit = () => {
+const handleSubmit = async () => {
   error.value = null
   success.value = null
+  
   // Validasyonlar
-  if (!formData.value.patientId.trim()) {
-    error.value = 'Patient ID is required.'
+  if (!formData.value.firstName.trim()) {
+    error.value = 'First name is required.'
     return
   }
-  if (!formData.value.fullName.trim()) {
-    error.value = 'Full name is required.'
+  if (!formData.value.lastName.trim()) {
+    error.value = 'Last name is required.'
     return
   }
-  if (!formData.value.doctor) {
+  if (!formData.value.nationalId.trim()) {
+    error.value = 'National ID is required.'
+    return
+  }
+  if (!formData.value.primaryDoctorId) {
     error.value = 'Doctor selection is required.'
     return
   }
-  if (!formData.value.department) {
+  if (!formData.value.departmentId) {
     error.value = 'Department selection is required.'
     return
   }
-  // Benzersiz ID kontrolü
-  if (patientStore.patientExists(formData.value.patientId)) {
-    error.value = 'A patient with this ID already exists.'
+  
+  // Benzersiz National ID kontrolü
+  if (patientStore.patientExists(formData.value.nationalId)) {
+    error.value = 'A patient with this National ID already exists.'
     return
   }
-  // Kayıt ekle
-  patientStore.addPatient({
-    patientId: formData.value.patientId,
-    fullName: formData.value.fullName,
-    gender: formData.value.gender,
-    contactNumber: formData.value.contactNumber,
-    diagnosis: formData.value.diagnosis,
-    visitInfo: formData.value.visitInfo,
-    doctor: formData.value.doctor,
-    department: formData.value.department,
-    date: formData.value.date ? formData.value.date.toString() : undefined,
-    tags: [...formData.value.tags],
-  })
-  success.value = 'Patient registered successfully!'
-  // Formu sıfırla
-  formData.value = {
-    fullName: '', patientId: '', gender: '', contactNumber: '', diagnosis: '', visitInfo: '', doctor: '', department: '', date: undefined, tags: []
+  
+  try {
+    // Kayıt ekle
+    await patientStore.addPatient({
+      firstName: formData.value.firstName,
+      lastName: formData.value.lastName,
+      nationalId: formData.value.nationalId,
+      birthDate: formData.value.birthDate || undefined,
+      gender: formData.value.gender || undefined,
+      phone: formData.value.phone || undefined,
+      email: formData.value.email || undefined,
+      address: formData.value.address || undefined,
+      bloodType: formData.value.bloodType || undefined,
+      allergies: formData.value.allergies || undefined,
+      chronicConditions: formData.value.chronicConditions || undefined,
+      insuranceProvider: formData.value.insuranceProvider || undefined,
+      insuranceNumber: formData.value.insuranceNumber || undefined,
+      emergencyContactName: formData.value.emergencyContactName || undefined,
+      emergencyContactPhone: formData.value.emergencyContactPhone || undefined,
+      primaryDoctorId: formData.value.primaryDoctorId,
+      departmentId: formData.value.departmentId,
+    })
+    
+    success.value = 'Patient registered successfully!'
+    
+    // Formu sıfırla
+    formData.value = {
+      firstName: '', lastName: '', nationalId: '', birthDate: '', gender: '', phone: '', email: '', address: '',
+      bloodType: '', allergies: '', chronicConditions: '', insuranceProvider: '', insuranceNumber: '',
+      emergencyContactName: '', emergencyContactPhone: '', primaryDoctorId: '', departmentId: ''
+    }
+    
+    // Başarılı olursa geri dön
+    setTimeout(() => {
+      router.push('/patients')
+    }, 1500)
+  } catch (err: any) {
+    error.value = err.message || 'Failed to create patient.'
   }
 }</script>
 
@@ -155,12 +179,20 @@ const handleSubmit = () => {
             <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider">Patient Information</h3>
             <div class="grid gap-4 sm:grid-cols-2">
               <div class="space-y-2">
-                <Label for="fullName">Full Name <span class="text-red-500">*</span></Label>
-                <Input id="fullName" placeholder="John Doe" v-model="formData.fullName" />
+                <Label for="firstName">First Name <span class="text-red-500">*</span></Label>
+                <Input id="firstName" placeholder="John" v-model="formData.firstName" />
               </div>
               <div class="space-y-2">
-                <Label for="patientId">Patient ID</Label>
-                <Input id="patientId" placeholder="PT-123456" v-model="formData.patientId" />
+                <Label for="lastName">Last Name <span class="text-red-500">*</span></Label>
+                <Input id="lastName" placeholder="Doe" v-model="formData.lastName" />
+              </div>
+              <div class="space-y-2">
+                <Label for="nationalId">National ID <span class="text-red-500">*</span></Label>
+                <Input id="nationalId" placeholder="12345678901" v-model="formData.nationalId" />
+              </div>
+              <div class="space-y-2">
+                <Label for="birthDate">Birth Date</Label>
+                <Input id="birthDate" type="date" v-model="formData.birthDate" />
               </div>
               <div class="space-y-2">
                 <Label>Gender</Label>
@@ -169,16 +201,23 @@ const handleSubmit = () => {
                     <SelectValue placeholder="Select gender" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                    <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
+                    <SelectItem value="MALE">Male</SelectItem>
+                    <SelectItem value="FEMALE">Female</SelectItem>
+                    <SelectItem value="OTHER">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div class="space-y-2">
-                <Label for="contact">Contact Number</Label>
-                <Input id="contact" placeholder="+1 (555) 000-0000" v-model="formData.contactNumber" />
+                <Label for="phone">Phone</Label>
+                <Input id="phone" placeholder="05551234567" v-model="formData.phone" />
+              </div>
+              <div class="space-y-2">
+                <Label for="email">Email</Label>
+                <Input id="email" type="email" placeholder="patient@example.com" v-model="formData.email" />
+              </div>
+              <div class="space-y-2">
+                <Label for="address">Address</Label>
+                <Input id="address" placeholder="Address" v-model="formData.address" />
               </div>
             </div>
           </div>
@@ -188,103 +227,78 @@ const handleSubmit = () => {
           <!-- Section 2: Medical Information -->
           <div class="space-y-4">
             <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider">Medical Information</h3>
-            <div class="space-y-2">
-              <Label for="diagnosis">Diagnosis / Medical Notes</Label>
-              <Textarea 
-                id="diagnosis" 
-                placeholder="Enter initial diagnosis or symptoms..." 
-                class="min-h-[100px]" 
-                v-model="formData.diagnosis"
-              />
-            </div>
-            <div class="space-y-2">
-              <Label for="visitInfo">Visit Information</Label>
-              <Input id="visitInfo" placeholder="Reason for visit (e.g. Annual Checkup)" v-model="formData.visitInfo" />
-            </div>
-          </div>
-
-          <div class="border-t border-gray-100 dark:border-gray-800"></div>
-
-          <!-- Section 3: Visit Assignment -->
-          <div class="space-y-4">
-            <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider">Visit Assignment</h3>
             <div class="grid gap-4 sm:grid-cols-2">
               <div class="space-y-2">
-                <Label>Assigned Doctor</Label>
-                <Select v-model="formData.doctor">
-  <SelectTrigger class="w-full">
-    <SelectValue placeholder="Select doctor" />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem v-for="doc in doctorStore.doctors" :key="doc.id" :value="doc.name">
-      {{ doc.name }} ({{ doc.department }})
-    </SelectItem>
-  </SelectContent>
-</Select>
+                <Label for="bloodType">Blood Type</Label>
+                <Input id="bloodType" placeholder="A+" v-model="formData.bloodType" />
               </div>
               <div class="space-y-2">
-                <Label>Department</Label>
-                <Select v-model="formData.department">
-  <SelectTrigger class="w-full">
-    <SelectValue placeholder="Select department" />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem v-for="dept in departmentStore.departments" :key="dept.id" :value="dept.name">
-      {{ dept.name }}
-    </SelectItem>
-  </SelectContent>
-</Select>
+                <Label for="allergies">Allergies</Label>
+                <Input id="allergies" placeholder="Penisilin" v-model="formData.allergies" />
+              </div>
+              <div class="space-y-2 sm:col-span-2">
+                <Label for="chronicConditions">Chronic Conditions</Label>
+                <Input id="chronicConditions" placeholder="Diyabet" v-model="formData.chronicConditions" />
               </div>
             </div>
           </div>
 
           <div class="border-t border-gray-100 dark:border-gray-800"></div>
 
-          <!-- Section 4: Administrative Information -->
+          <!-- Section 3: Assignment -->
           <div class="space-y-4">
-            <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider">Administrative</h3>
+            <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider">Assignment</h3>
             <div class="grid gap-4 sm:grid-cols-2">
-              <div class="space-y-2 flex flex-col">
-                <Label>Registration Date</Label>
-                <Popover>
-                  <PopoverTrigger as-child>
-                    <Button
-                      variant="outline"
-                      :class="!formData.date ? 'text-muted-foreground' : ''"
-                      class="w-full justify-start text-left font-normal"
-                    >
-                      <CalendarIcon class="mr-2 h-4 w-4" />
-                      {{ formattedDate }}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent class="w-auto p-0">
-                    <Calendar v-model="formData.date" />
-                  </PopoverContent>
-                </Popover>
+              <div class="space-y-2">
+                <Label>Primary Doctor <span class="text-red-500">*</span></Label>
+                <Select v-model="formData.primaryDoctorId">
+                  <SelectTrigger class="w-full">
+                    <SelectValue placeholder="Select doctor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem v-for="doc in doctorStore.doctors" :key="doc.id" :value="doc.id">
+                      {{ doc.specialization || doc.id }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              
-              <div class="space-y-2 flex flex-col">
-                <Label>Categorization Tags</Label>
-                <Popover>
-                  <PopoverTrigger as-child>
-                    <Button variant="outline" class="w-full justify-between font-normal">
-                      <span v-if="formData.tags.length === 0" class="text-muted-foreground">Select tags...</span>
-                      <span v-else class="truncate">{{ formData.tags.join(', ') }}</span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent class="w-[200px] p-2" align="start">
-                    <div class="grid gap-2">
-                      <div v-for="tag in availableTags" :key="tag" class="flex items-center space-x-2">
-                        <Checkbox 
-                          :id="tag" 
-                          :checked="formData.tags.includes(tag)"
-                          @update:checked="toggleTag(tag)"
-                        />
-                        <Label :for="tag" class="text-sm font-normal cursor-pointer">{{ tag }}</Label>
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
+              <div class="space-y-2">
+                <Label>Department <span class="text-red-500">*</span></Label>
+                <Select v-model="formData.departmentId">
+                  <SelectTrigger class="w-full">
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem v-for="dept in departmentStore.departments" :key="dept.id" :value="dept.id">
+                      {{ dept.name }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <div class="border-t border-gray-100 dark:border-gray-800"></div>
+
+          <!-- Section 4: Insurance & Emergency Contact -->
+          <div class="space-y-4">
+            <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider">Insurance & Emergency Contact</h3>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div class="space-y-2">
+                <Label for="insuranceProvider">Insurance Provider</Label>
+                <Input id="insuranceProvider" placeholder="SGK" v-model="formData.insuranceProvider" />
+              </div>
+              <div class="space-y-2">
+                <Label for="insuranceNumber">Insurance Number</Label>
+                <Input id="insuranceNumber" placeholder="INS123" v-model="formData.insuranceNumber" />
+              </div>
+              <div class="space-y-2">
+                <Label for="emergencyContactName">Emergency Contact Name</Label>
+                <Input id="emergencyContactName" placeholder="Ayşe Veli" v-model="formData.emergencyContactName" />
+              </div>
+              <div class="space-y-2">
+                <Label for="emergencyContactPhone">Emergency Contact Phone</Label>
+                <Input id="emergencyContactPhone" placeholder="05559876543" v-model="formData.emergencyContactPhone" />
               </div>
             </div>
           </div>

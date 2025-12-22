@@ -28,9 +28,17 @@ const navigateToCreate = () => {
 }
 
 const actions = computed(() => {
+  // Debug için role'ü console'a yazdır
+  const currentRole = auth.user?.role || ''
+  console.log('Dashboard - Current role:', currentRole)
+  console.log('Dashboard - User object:', auth.user)
+  
   // Hide/show dashboard actions by role
   function getActionsByRole(role: string) {
-    if (role === 'admin') {
+    const upperRole = role?.toUpperCase() || ''
+    console.log('getActionsByRole called with:', upperRole)
+    
+    if (upperRole === 'ADMIN' || upperRole === 'ROLE_ADMIN') {
       return [
         {
           title: 'New Patient',
@@ -79,7 +87,7 @@ const actions = computed(() => {
         }
       ];
     }
-    if (role === 'doctor') {
+    if (upperRole === 'DOCTOR') {
       return [
         {
           title: 'Patient List',
@@ -133,10 +141,19 @@ const actions = computed(() => {
     <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div class="mb-8">
         <h2 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Dashboard</h2>
-        <p class="mt-1 text-sm text-gray-500">Welcome back, Dr. Smith. What would you like to do today?</p>
+        <p class="mt-1 text-sm text-gray-500">
+          Welcome back, {{ auth.user?.name || auth.user?.email || 'User' }}. What would you like to do today?
+        </p>
+        <p class="mt-1 text-xs text-gray-400">
+          Role: {{ auth.user?.role || 'Unknown' }}
+        </p>
       </div>
 
-      <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div v-if="actions.length === 0" class="text-center py-12">
+        <p class="text-gray-500">No actions available for your role ({{ auth.user?.role || 'Unknown' }}).</p>
+        <p class="text-sm text-gray-400 mt-2">Please contact an administrator.</p>
+      </div>
+      <div v-else class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <Card 
           v-for="(action, index) in actions" 
           :key="index"

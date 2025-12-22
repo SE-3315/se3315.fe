@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useDepartmentStore } from '@/stores/department'
 import { usePatientStore } from '@/stores/patient'
 import { Button } from '@/components/ui/button'
@@ -10,34 +10,90 @@ const departmentStore = useDepartmentStore()
 const patientStore = usePatientStore()
 
 const newDeptName = ref('')
+const newDeptDescription = ref('')
 const error = ref('')
 const success = ref('')
 const confirmDeleteId = ref<string|null>(null)
 
-function addDepartment() {
-  error.value = ''
-  if(!newDeptName.value.trim()) {
-    error.value = 'Department name is required.'; return
+// Sayfa yüklendiğinde verileri çek
+onMounted(async () => {
+  try {
+    await Promise.all([
+      departmentStore.fetchDepartments(),
+      patientStore.fetchPatients()
+    ])
+  } catch (err: any) {
+    error.value = 'Veriler yüklenirken hata oluştu: ' + (err.message || 'Bilinmeyen hata')
   }
-  const newId = 'DEP-' + (100 + departmentStore.departments.length + 1)
-  departmentStore.addDepartment({ id: newId, name: newDeptName.value })
-  newDeptName.value = ''
-  success.value = 'Department added.'
+})
+
+async function addDepartment() {
+  error.value = ''
+  success.value = ''
+  
+  if(!newDeptName.value.trim()) {
+    error.value = 'Departman adı gereklidir.'
+    return
+  }
+  
+  try {
+    await departmentStore.addDepartment({
+      name: newDeptName.value,
+      description: newDeptDescription.value || undefined,
+      isActive: true
+    })
+    
+    // Verileri yeniden yükle
+    await departmentStore.fetchDepartments()
+    
+    newDeptName.value = ''
+    newDeptDescription.value = ''
+    success.value = 'Departman başarıyla eklendi.'
+    
+    // Success mesajını 3 saniye sonra kaldır
+    setTimeout(() => {
+      success.value = ''
+    }, 3000)
+  } catch (err: any) {
+    error.value = err.message || 'Departman eklenirken hata oluştu.'
+  }
 }
 
-function hasRelatedPatients(deptName: string): boolean {
-  return patientStore.patients.some(p => p.department === deptName)
+function hasRelatedPatients(deptId: string): boolean {
+  return patientStore.patients.some(p => p.departmentId === deptId)
 }
-function askDelete(id: string) { confirmDeleteId.value = id }
-function deleteDepartment() {
-  const dept = departmentStore.getDepartmentById(confirmDeleteId.value!)
-  if(dept && hasRelatedPatients(dept.name)) {
-    error.value = 'Cannot delete: this department is assigned to at least one patient.'
-  } else {
-    departmentStore.deleteDepartment(confirmDeleteId.value!)
-    success.value = 'Department deleted.'
+
+function askDelete(id: string) { 
+  confirmDeleteId.value = id 
+}
+
+async function deleteDepartment() {
+  error.value = ''
+  success.value = ''
+  
+  try {
+    if (hasRelatedPatients(confirmDeleteId.value!)) {
+      error.value = 'Bu departmana bağlı hasta var, silinemez!'
+      confirmDeleteId.value = null
+      return
+    }
+    
+    await departmentStore.deleteDepartment(confirmDeleteId.value!)
+    
+    // Verileri yeniden yükle
+    await departmentStore.fetchDepartments()
+    
+    success.value = 'Departman başarıyla silindi.'
+    confirmDeleteId.value = null
+    
+    // Success mesajını 3 saniye sonra kaldır
+    setTimeout(() => {
+      success.value = ''
+    }, 3000)
+  } catch (err: any) {
+    error.value = err.message || 'Departman silinirken hata oluştu.'
+    confirmDeleteId.value = null
   }
-  confirmDeleteId.value = null
 }
 </script>
 <template>
@@ -46,9 +102,14 @@ function deleteDepartment() {
       <Card class="mb-6">
         <CardHeader><CardTitle>Department Management</CardTitle></CardHeader>
         <CardContent>
-          <div class="flex gap-2 mb-4">
-            <input v-model="newDeptName" placeholder="Department Name" class="border rounded px-2 py-1 focus:border-blue-400" />
-            <Button @click="addDepartment">Add</Button>
+          <div class="space-y-3 mb-4">
+            <div class="flex gap-2">
+              <input v-model="newDeptName" placeholder="Departman Adı" class="border rounded px-2 py-1 focus:border-blue-400 flex-1" />
+              <Button @click="addDepartment" :disabled="departmentStore.isLoading">
+                {{ departmentStore.isLoading ? 'Ekleniyor...' : 'Ekle' }}
+              </Button>
+            </div>
+            <input v-model="newDeptDescription" placeholder="Açıklama (opsiyonel)" class="border rounded px-2 py-1 focus:border-blue-400 w-full" />
           </div>
           <div v-if="error" class="mb-4 text-red-600 bg-red-50 border border-red-200 rounded px-4 py-2">{{ error }}</div>
           <div v-if="success" class="mb-4 text-green-700 bg-green-50 border border-green-200 rounded px-4 py-2">{{ success }}</div>
@@ -60,16 +121,24 @@ function deleteDepartment() {
           <table class="w-full mt-2 text-sm border">
             <thead>
               <tr class="bg-gray-200">
-                <th>ID</th><th>Name</th><th>Actions</th>
+                <th>Ad</th><th>Açıklama</th><th>Durum</th><th>İşlemler</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="d in departmentStore.departments" :key="d.id">
-                <td>{{ d.id }}</td>
                 <td>{{ d.name }}</td>
+                <td>{{ d.description || '-' }}</td>
                 <td>
-                  <Button variant="ghost" color="danger" @click="askDelete(d.id)">Delete</Button>
+                  <span :class="d.isActive ? 'text-green-600' : 'text-red-600'">
+                    {{ d.isActive ? 'Aktif' : 'Pasif' }}
+                  </span>
                 </td>
+                <td>
+                  <Button variant="ghost" color="danger" @click="askDelete(d.id)" :disabled="departmentStore.isLoading">Sil</Button>
+                </td>
+              </tr>
+              <tr v-if="departmentStore.departments.length === 0">
+                <td colspan="4" class="text-center py-4 text-gray-500">Henüz departman eklenmemiş</td>
               </tr>
             </tbody>
           </table>

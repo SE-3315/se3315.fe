@@ -1,71 +1,91 @@
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-
-export interface Patient {
-  patientId: string;
-  fullName: string;
-  gender: string;
-  contactNumber: string;
-  diagnosis: string;
-  visitInfo: string;
-  doctor: string;
-  department: string;
-  date?: string; // ISO string
-  tags?: string[];
-}
-
-const initialPatients: Patient[] = [
-  {
-    patientId: 'PT-1001',
-    fullName: 'Elif Yılmaz',
-    gender: 'female',
-    contactNumber: '+90 500 123 45 67',
-    diagnosis: 'Migraine',
-    visitInfo: 'Annual check',
-    doctor: 'Dr. Sarah Smith',
-    department: 'Neurology',
-    date: '2025-12-01',
-    tags: ['VIP']
-  },
-  {
-    patientId: 'PT-1002',
-    fullName: 'Can Demir',
-    gender: 'male',
-    contactNumber: '+90 507 765 43 21',
-    diagnosis: 'Hypertension',
-    visitInfo: 'Follow-up',
-    doctor: 'Dr. James Wilson',
-    department: 'Cardiology',
-    date: '2025-12-10',
-    tags: ['Chronic Condition']
-  }
-]
+import { patientApi, type Patient, type PatientCreateRequest } from '@/services/api'
 
 export const usePatientStore = defineStore('patient', () => {
-  const patients = ref<Patient[]>([...initialPatients])
+  const patients = ref<Patient[]>([])
+  const isLoading = ref(false)
+  const error = ref<string>('')
 
-  function addPatient(newPatient: Patient) {
-    patients.value.push(newPatient)
-  }
-  function updatePatient(patientId: string, updates: Partial<Patient>) {
-    const idx = patients.value.findIndex(p => p.patientId === patientId)
-    if (idx !== -1) {
-      // Patient ID hiçbir koşulda güncellenemez!
-      const { patientId: _omitId, ...restUpdates } = updates;
-      patients.value[idx] = { ...patients.value[idx], ...restUpdates }
+  // Backend'den tüm hastaları yükle
+  async function fetchPatients() {
+    isLoading.value = true
+    error.value = ''
+    try {
+      patients.value = await patientApi.getAll()
+    } catch (err: any) {
+      error.value = err.response?.data?.message || 'Failed to fetch patients.'
+      throw err
+    } finally {
+      isLoading.value = false
     }
   }
-  function deletePatient(patientId: string) {
-    patients.value = patients.value.filter(p => p.patientId !== patientId)
+
+  // Yeni hasta ekle
+  async function addPatient(newPatient: PatientCreateRequest) {
+    isLoading.value = true
+    error.value = ''
+    try {
+      const created = await patientApi.create(newPatient)
+      patients.value.push(created)
+      return created
+    } catch (err: any) {
+      error.value = err.response?.data?.message || 'Failed to create patient.'
+      throw err
+    } finally {
+      isLoading.value = false
+    }
   }
-  function getPatientById(patientId: string) {
-    return patients.value.find(p => p.patientId === patientId) || null
+
+  // Hasta güncelle
+  async function updatePatient(id: string, updates: Partial<PatientCreateRequest>) {
+    isLoading.value = true
+    error.value = ''
+    try {
+      const updated = await patientApi.update(id, updates)
+      const idx = patients.value.findIndex(p => p.id === id)
+      if (idx !== -1) {
+        patients.value[idx] = updated
+      }
+      return updated
+    } catch (err: any) {
+      error.value = err.response?.data?.message || 'Failed to update patient.'
+      throw err
+    } finally {
+      isLoading.value = false
+    }
   }
-  function patientExists(patientId: string) {
-    return patients.value.some(p => p.patientId === patientId)
+
+  // Hasta sil
+  async function deletePatient(id: string) {
+    isLoading.value = true
+    error.value = ''
+    try {
+      await patientApi.delete(id)
+      patients.value = patients.value.filter(p => p.id !== id)
+    } catch (err: any) {
+      error.value = err.response?.data?.message || 'Failed to delete patient.'
+      throw err
+    } finally {
+      isLoading.value = false
+    }
   }
+
+  // ID'ye göre hasta getir
+  function getPatientById(id: string) {
+    return patients.value.find(p => p.id === id) || null
+  }
+
+  // National ID kontrolü (benzersizlik için)
+  function patientExists(nationalId: string) {
+    return patients.value.some(p => p.nationalId === nationalId)
+  }
+
   return {
     patients,
+    isLoading,
+    error,
+    fetchPatients,
     addPatient,
     updatePatient,
     deletePatient,

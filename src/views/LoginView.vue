@@ -19,13 +19,13 @@ import { AlertCircle, Loader2 } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-const username = ref('')
+const email = ref('')
 const password = ref('')
 
 const auth = useAuthStore()
 
 const handleLogin = async () => {
-    await auth.login(username.value, password.value)
+    await auth.login(email.value, password.value)
 }
 </script>
 
@@ -50,8 +50,8 @@ const handleLogin = async () => {
                 </Alert>
 
                 <div class="space-y-2">
-<Label for="username">Username</Label>
-<Input id="username" type="text" placeholder="admin / doctor1" v-model="username" />
+<Label for="email">Email</Label>
+<Input id="email" type="email" placeholder="user@example.com" v-model="email" />
                 </div>
 
                 <div class="space-y-2">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { usePatientStore } from '@/stores/patient'
 import { useDoctorStore } from '@/stores/doctor'
 import { useDepartmentStore } from '@/stores/department'
@@ -18,12 +18,31 @@ const filterDepartment = ref('')
 const error = ref('')
 const success = ref('')
 
+// Sayfa yüklendiğinde verileri çek
+onMounted(async () => {
+  try {
+    await Promise.all([
+      patientStore.fetchPatients(),
+      doctorStore.fetchDoctors(),
+      departmentStore.fetchDepartments()
+    ])
+  } catch (err) {
+    error.value = 'Failed to load data.'
+  }
+})
+
 const filteredPatients = computed(() => {
   return patientStore.patients.filter(p => {
-    const matchId = !filterPatientId.value || p.patientId.includes(filterPatientId.value)
-    const matchName = !filterName.value || p.fullName.toLowerCase().includes(filterName.value.toLowerCase())
-    const matchDoc = !filterDoctor.value || p.doctor === filterDoctor.value
-    const matchDept = !filterDepartment.value || p.department === filterDepartment.value
+    const fullName = `${p.firstName} ${p.lastName}`
+    const matchId = !filterPatientId.value || p.id.includes(filterPatientId.value) || p.nationalId.includes(filterPatientId.value)
+    const matchName = !filterName.value || fullName.toLowerCase().includes(filterName.value.toLowerCase())
+    
+    // Doctor ve Department ID'lerine göre filtrele
+    const doctor = doctorStore.getDoctorById(p.doctorId)
+    const department = departmentStore.getDepartmentById(p.departmentId)
+    const matchDoc = !filterDoctor.value || doctor?.id === filterDoctor.value
+    const matchDept = !filterDepartment.value || department?.id === filterDepartment.value
+    
     return matchId && matchName && matchDoc && matchDept
   })
 })
@@ -35,12 +54,19 @@ function askDelete(patientId: string) {
   selectedPatientId.value = patientId
   confirmDelete.value = true
 }
-function deletePatient() {
+
+async function deletePatient() {
   if (selectedPatientId.value) {
-    patientStore.deletePatient(selectedPatientId.value)
-    success.value = 'Patient deleted successfully.'
-    confirmDelete.value = false
-    selectedPatientId.value = null
+    try {
+      await patientStore.deletePatient(selectedPatientId.value)
+      success.value = 'Patient deleted successfully.'
+      error.value = ''
+      confirmDelete.value = false
+      selectedPatientId.value = null
+    } catch (err: any) {
+      error.value = err.message || 'Failed to delete patient.'
+      confirmDelete.value = false
+    }
   }
 }
 </script>
@@ -60,11 +86,11 @@ function deletePatient() {
             <input v-model="filterName" placeholder="Search by Name" class="border rounded px-2 py-1 focus:border-blue-400" />
             <select v-model="filterDoctor" class="border rounded px-2 py-1 focus:border-blue-400">
               <option value="">All Doctors</option>
-              <option v-for="doc in doctorStore.doctors" :key="doc.id" :value="doc.name">{{ doc.name }}</option>
+              <option v-for="doc in doctorStore.doctors" :key="doc.id" :value="doc.id">{{ doc.specialization || doc.id }}</option>
             </select>
             <select v-model="filterDepartment" class="border rounded px-2 py-1 focus:border-blue-400">
               <option value="">All Departments</option>
-              <option v-for="dept in departmentStore.departments" :key="dept.id" :value="dept.name">{{ dept.name }}</option>
+              <option v-for="dept in departmentStore.departments" :key="dept.id" :value="dept.id">{{ dept.name }}</option>
             </select>
           </div>
         </CardContent>
@@ -95,13 +121,13 @@ function deletePatient() {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="p in filteredPatients" :key="p.patientId">
-                <td>{{p.patientId}}</td>
-                <td>{{p.fullName}}</td>
-                <td>{{p.doctor}}</td>
-                <td>{{p.department}}</td>
+              <tr v-for="p in filteredPatients" :key="p.id">
+                <td>{{p.nationalId}}</td>
+                <td>{{p.firstName}} {{p.lastName}}</td>
+                <td>{{doctorStore.getDoctorById(p.doctorId)?.specialization || 'N/A'}}</td>
+                <td>{{departmentStore.getDepartmentById(p.departmentId)?.name || 'N/A'}}</td>
                 <td>
-                  <Button variant="ghost" color="danger" @click="askDelete(p.patientId)">Delete</Button>
+                  <Button variant="ghost" color="danger" @click="askDelete(p.id)">Delete</Button>
                   <!-- Buraya güncelleme/detay butonları eklenebilir -->
                 </td>
               </tr>

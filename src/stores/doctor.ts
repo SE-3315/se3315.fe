@@ -1,36 +1,75 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-
-export interface Doctor {
-  id: string;
-  name: string;
-  department: string;
-}
-
-const initialDoctors: Doctor[] = [
-  { id: 'DR-001', name: 'Dr. Sarah Smith', department: 'Neurology' },
-  { id: 'DR-002', name: 'Dr. Michael Chen', department: 'Cardiology' },
-  { id: 'DR-003', name: 'Dr. Emily Johnson', department: 'Pediatrics' },
-  { id: 'DR-004', name: 'Dr. James Wilson', department: 'Cardiology' }
-]
+import { doctorApi, type Doctor, type DoctorCreateRequest } from '@/services/api'
+import { usePatientStore } from './patient'
 
 export const useDoctorStore = defineStore('doctor', () => {
-  const doctors = ref<Doctor[]>([...initialDoctors]);
-  function addDoctor(newDoctor: Doctor) {
-    doctors.value.push(newDoctor)
-  }
-  function deleteDoctor(doctorId: string, relatedPatientCheck?: (id: string) => boolean) {
-    // İlgili hasta kontrolü
-    if (relatedPatientCheck && relatedPatientCheck(doctorId)) {
-      throw new Error('Bu doktora bağlı hasta var, silinemez!')
+  const doctors = ref<Doctor[]>([])
+  const isLoading = ref(false)
+  const error = ref<string>('')
+
+  // Backend'den tüm doktorları yükle
+  async function fetchDoctors() {
+    isLoading.value = true
+    error.value = ''
+    try {
+      doctors.value = await doctorApi.getAll()
+    } catch (err: any) {
+      error.value = err.response?.data?.message || 'Failed to fetch doctors.'
+      throw err
+    } finally {
+      isLoading.value = false
     }
-    doctors.value = doctors.value.filter(d => d.id !== doctorId)
   }
+
+  // Yeni doktor ekle
+  async function addDoctor(newDoctor: DoctorCreateRequest) {
+    isLoading.value = true
+    error.value = ''
+    try {
+      const created = await doctorApi.create(newDoctor)
+      doctors.value.push(created)
+      return created
+    } catch (err: any) {
+      error.value = err.response?.data?.message || 'Failed to create doctor.'
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // Doktor sil
+  async function deleteDoctor(doctorId: string) {
+    isLoading.value = true
+    error.value = ''
+    try {
+      // İlgili hasta kontrolü
+      const patientStore = usePatientStore()
+      const hasRelatedPatients = patientStore.patients.some(p => p.doctorId === doctorId)
+      if (hasRelatedPatients) {
+        throw new Error('Bu doktora bağlı hasta var, silinemez!')
+      }
+      
+      await doctorApi.delete(doctorId)
+      doctors.value = doctors.value.filter(d => d.id !== doctorId)
+    } catch (err: any) {
+      error.value = err.response?.data?.message || err.message || 'Failed to delete doctor.'
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // ID'ye göre doktor getir
   function getDoctorById(doctorId: string) {
     return doctors.value.find(d => d.id === doctorId) || null
   }
+
   return {
     doctors,
+    isLoading,
+    error,
+    fetchDoctors,
     addDoctor,
     deleteDoctor,
     getDoctorById
