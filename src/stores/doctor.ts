@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import { doctorApi, type Doctor, type DoctorCreateRequest } from '@/services/api'
+import { doctorApi, authApi, type Doctor, type DoctorCreateRequest, type RegisterRequest } from '@/services/api'
 import { usePatientStore } from './patient'
 
 export const useDoctorStore = defineStore('doctor', () => {
@@ -22,16 +22,60 @@ export const useDoctorStore = defineStore('doctor', () => {
     }
   }
 
-  // Yeni doktor ekle
-  async function addDoctor(newDoctor: DoctorCreateRequest) {
+  // Yeni doktor ekle - önce user oluştur, sonra doctor oluştur
+  async function addDoctor(
+    doctorData: DoctorCreateRequest,
+    userData: {
+      email: string
+      password: string
+      firstName?: string
+      lastName?: string
+      phone?: string
+    }
+  ) {
     isLoading.value = true
     error.value = ''
+    let createdUserId: string | null = null
+
     try {
-      const created = await doctorApi.create(newDoctor)
+      // 1. Önce user oluştur (role: DOCTOR)
+      const registerRequest: RegisterRequest = {
+        email: userData.email,
+        password: userData.password,
+        role: 'DOCTOR',
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        phone: userData.phone,
+      }
+
+      const registerResponse = await authApi.register(registerRequest)
+      createdUserId = registerResponse.id
+
+      if (!createdUserId) {
+        throw new Error('User created but user ID could not be retrieved.')
+      }
+
+      // 2. User ID ile doctor oluştur
+      const doctorRequest: DoctorCreateRequest = {
+        ...doctorData,
+        userId: createdUserId,
+      }
+
+      const created = await doctorApi.create(doctorRequest)
       doctors.value.push(created)
       return created
     } catch (err: any) {
-      error.value = err.response?.data?.message || 'Failed to create doctor.'
+      // Error handling
+      if (err.response?.status === 400 || err.response?.status === 409) {
+        // Validation error or duplicate email
+        error.value = err.response?.data?.message || 'Failed to create user. Email may already be in use.'
+      } else if (err.response?.status === 500) {
+        error.value = 'Server error occurred. Please try again.'
+      } else if (err.message) {
+        error.value = err.message
+      } else {
+        error.value = err.response?.data?.message || 'Error creating doctor.'
+      }
       throw err
     } finally {
       isLoading.value = false
@@ -43,11 +87,11 @@ export const useDoctorStore = defineStore('doctor', () => {
     isLoading.value = true
     error.value = ''
     try {
-      // İlgili hasta kontrolü
+      // Check for related patients
       const patientStore = usePatientStore()
       const hasRelatedPatients = patientStore.patients.some(p => p.doctorId === doctorId)
       if (hasRelatedPatients) {
-        throw new Error('Bu doktora bağlı hasta var, silinemez!')
+        throw new Error('Cannot delete doctor with related patients!')
       }
       
       await doctorApi.delete(doctorId)

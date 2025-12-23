@@ -58,6 +58,15 @@ export interface RegisterRequest {
   phone?: string
 }
 
+export interface RegisterResponse {
+  id: string
+  email: string
+  role: string
+  firstName?: string
+  lastName?: string
+  phone?: string
+}
+
 export interface AuthResponse {
   accessToken: string
   tokenType: string
@@ -80,8 +89,9 @@ export const authApi = {
     return response.data
   },
 
-  register: async (data: RegisterRequest): Promise<void> => {
-    await apiClient.post('/auth/register', data)
+  register: async (data: RegisterRequest): Promise<RegisterResponse> => {
+    const response = await apiClient.post<RegisterResponse>('/auth/register', data)
+    return response.data
   },
 
   // Backend'den user bilgisini çek (role dahil)

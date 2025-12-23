@@ -23,7 +23,7 @@ onMounted(async () => {
       patientStore.fetchPatients()
     ])
   } catch (err: any) {
-    error.value = 'Veriler yüklenirken hata oluştu: ' + (err.message || 'Bilinmeyen hata')
+    error.value = 'Error loading data: ' + (err.message || 'Unknown error')
   }
 })
 
@@ -32,7 +32,7 @@ async function addDepartment() {
   success.value = ''
   
   if(!newDeptName.value.trim()) {
-    error.value = 'Departman adı gereklidir.'
+    error.value = 'Department name is required.'
     return
   }
   
@@ -48,14 +48,14 @@ async function addDepartment() {
     
     newDeptName.value = ''
     newDeptDescription.value = ''
-    success.value = 'Departman başarıyla eklendi.'
+    success.value = 'Department added successfully.'
     
-    // Success mesajını 3 saniye sonra kaldır
+    // Remove success message after 3 seconds
     setTimeout(() => {
       success.value = ''
     }, 3000)
   } catch (err: any) {
-    error.value = err.message || 'Departman eklenirken hata oluştu.'
+    error.value = err.message || 'Error creating department.'
   }
 }
 
@@ -73,25 +73,25 @@ async function deleteDepartment() {
   
   try {
     if (hasRelatedPatients(confirmDeleteId.value!)) {
-      error.value = 'Bu departmana bağlı hasta var, silinemez!'
+      error.value = 'Cannot delete department with related patients!'
       confirmDeleteId.value = null
       return
     }
     
     await departmentStore.deleteDepartment(confirmDeleteId.value!)
     
-    // Verileri yeniden yükle
+    // Reload data
     await departmentStore.fetchDepartments()
     
-    success.value = 'Departman başarıyla silindi.'
+    success.value = 'Department deleted successfully.'
     confirmDeleteId.value = null
     
-    // Success mesajını 3 saniye sonra kaldır
+    // Remove success message after 3 seconds
     setTimeout(() => {
       success.value = ''
     }, 3000)
   } catch (err: any) {
-    error.value = err.message || 'Departman silinirken hata oluştu.'
+    error.value = err.message || 'Error deleting department.'
     confirmDeleteId.value = null
   }
 }
@@ -104,12 +104,12 @@ async function deleteDepartment() {
         <CardContent>
           <div class="space-y-3 mb-4">
             <div class="flex gap-2">
-              <input v-model="newDeptName" placeholder="Departman Adı" class="border rounded px-2 py-1 focus:border-blue-400 flex-1" />
+              <input v-model="newDeptName" placeholder="Department Name" class="border rounded px-2 py-1 focus:border-blue-400 flex-1" />
               <Button @click="addDepartment" :disabled="departmentStore.isLoading">
-                {{ departmentStore.isLoading ? 'Ekleniyor...' : 'Ekle' }}
+                {{ departmentStore.isLoading ? 'Adding...' : 'Add' }}
               </Button>
             </div>
-            <input v-model="newDeptDescription" placeholder="Açıklama (opsiyonel)" class="border rounded px-2 py-1 focus:border-blue-400 w-full" />
+            <input v-model="newDeptDescription" placeholder="Description (optional)" class="border rounded px-2 py-1 focus:border-blue-400 w-full" />
           </div>
           <div v-if="error" class="mb-4 text-red-600 bg-red-50 border border-red-200 rounded px-4 py-2">{{ error }}</div>
           <div v-if="success" class="mb-4 text-green-700 bg-green-50 border border-green-200 rounded px-4 py-2">{{ success }}</div>
@@ -121,7 +121,7 @@ async function deleteDepartment() {
           <table class="w-full mt-2 text-sm border">
             <thead>
               <tr class="bg-gray-200">
-                <th>Ad</th><th>Açıklama</th><th>Durum</th><th>İşlemler</th>
+                <th>Name</th><th>Description</th><th>Status</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -130,15 +130,15 @@ async function deleteDepartment() {
                 <td>{{ d.description || '-' }}</td>
                 <td>
                   <span :class="d.isActive ? 'text-green-600' : 'text-red-600'">
-                    {{ d.isActive ? 'Aktif' : 'Pasif' }}
+                    {{ d.isActive ? 'Active' : 'Inactive' }}
                   </span>
                 </td>
                 <td>
-                  <Button variant="ghost" color="danger" @click="askDelete(d.id)" :disabled="departmentStore.isLoading">Sil</Button>
+                  <Button variant="ghost" color="danger" @click="askDelete(d.id)" :disabled="departmentStore.isLoading">Delete</Button>
                 </td>
               </tr>
               <tr v-if="departmentStore.departments.length === 0">
-                <td colspan="4" class="text-center py-4 text-gray-500">Henüz departman eklenmemiş</td>
+                <td colspan="4" class="text-center py-4 text-gray-500">No departments added yet</td>
               </tr>
             </tbody>
           </table>

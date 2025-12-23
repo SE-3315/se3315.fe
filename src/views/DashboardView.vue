@@ -13,7 +13,6 @@ import {
   Users,
   FileEdit,
   Trash2,
-  Search,
   LogOut,
   Activity
 } from 'lucide-vue-next'
@@ -76,15 +75,7 @@ const actions = computed(() => {
           bgColor: 'bg-red-100',
           hoverBorder: 'hover:border-red-200'
         },
-        {
-          title: 'Search & Filter',
-          description: 'Find records by ID, name, doctor, department',
-          icon: Search,
-          action: () => { router.push('/patients') },
-          color: 'text-purple-600',
-          bgColor: 'bg-purple-100',
-          hoverBorder: 'hover:border-purple-200'
-        }
+        
       ];
     }
     if (upperRole === 'DOCTOR') {
@@ -97,15 +88,6 @@ const actions = computed(() => {
           color: 'text-blue-600',
           bgColor: 'bg-blue-100',
           hoverBorder: 'hover:border-blue-200'
-        },
-        {
-          title: 'Search & Filter',
-          description: 'Find records by ID, name, doctor, department',
-          icon: Search,
-          action: () => { router.push('/patients') },
-          color: 'text-purple-600',
-          bgColor: 'bg-purple-100',
-          hoverBorder: 'hover:border-purple-200'
         }
       ];
     }

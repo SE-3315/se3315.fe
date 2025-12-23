@@ -43,11 +43,11 @@ export const useDepartmentStore = defineStore('department', () => {
     isLoading.value = true
     error.value = ''
     try {
-      // İlgili hasta kontrolü
+      // Check for related patients
       const patientStore = usePatientStore()
       const hasRelatedPatients = patientStore.patients.some(p => p.departmentId === depId)
       if (hasRelatedPatients) {
-        throw new Error('Bu departmana bağlı hasta var, silinemez!')
+        throw new Error('Cannot delete department with related patients!')
       }
       
       await departmentApi.delete(depId)

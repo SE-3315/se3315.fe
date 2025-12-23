@@ -16,6 +16,9 @@ const newDepartmentId = ref('')
 const newLicenseNumber = ref('')
 const newPhone = ref('')
 const newEmail = ref('')
+const newFirstName = ref('')
+const newLastName = ref('')
+const newPassword = ref('')
 const error = ref('')
 const success = ref('')
 const confirmDeleteId = ref<string | null>(null)
@@ -29,7 +32,7 @@ onMounted(async () => {
       departmentStore.fetchDepartments()
     ])
   } catch (err: any) {
-    error.value = 'Veriler yüklenirken hata oluştu: ' + (err.message || 'Bilinmeyen hata')
+    error.value = 'Error loading data: ' + (err.message || 'Unknown error')
   }
 })
 
@@ -37,53 +40,82 @@ async function addDoctor() {
   error.value = ''
   success.value = ''
   
+  // Validations
   if(!newSpecialization.value.trim()) {
-    error.value = 'Uzmanlık alanı gereklidir.'
+    error.value = 'Specialization is required.'
     return
   }
   if(!newDepartmentId.value) {
-    error.value = 'Departman seçilmelidir.'
+    error.value = 'Department must be selected.'
     return
   }
   if(!newLicenseNumber.value.trim()) {
-    error.value = 'Lisans numarası gereklidir.'
+    error.value = 'License number is required.'
+    return
+  }
+  if(!newEmail.value.trim()) {
+    error.value = 'Email is required.'
+    return
+  }
+  if(!newPassword.value.trim()) {
+    error.value = 'Password is required.'
+    return
+  }
+  if(newPassword.value.length < 6) {
+    error.value = 'Password must be at least 6 characters.'
+    return
+  }
+  if(!newFirstName.value.trim()) {
+    error.value = 'First name is required.'
+    return
+  }
+  if(!newLastName.value.trim()) {
+    error.value = 'Last name is required.'
     return
   }
   
   try {
-    // Not: Backend'de doctor oluştururken userId gerekli
-    // Şimdilik ilk doctor user'ı kullan veya backend'den al
-    // Bu kısım backend API'ye göre düzenlenmeli
-    error.value = 'Doctor eklemek için backend API\'de userId gereklidir. Lütfen backend\'den doctor user ID\'sini alın.'
-    return
-    
-    // TODO: Backend'den doctor user listesi çek veya userId'yi başka şekilde al
-    // await doctorStore.addDoctor({
-    //   userId: 'user-id-here',
-    //   departmentId: newDepartmentId.value,
-    //   licenseNumber: newLicenseNumber.value,
-    //   specialization: newSpecialization.value,
-    //   phone: newPhone.value || undefined,
-    //   email: newEmail.value || undefined,
-    //   isActive: true
-    // })
+    // Önce user oluştur, sonra doctor oluştur
+    await doctorStore.addDoctor(
+      {
+        departmentId: newDepartmentId.value,
+        licenseNumber: newLicenseNumber.value,
+        specialization: newSpecialization.value,
+        phone: newPhone.value || undefined,
+        email: newEmail.value || undefined,
+        isActive: true
+      },
+      {
+        email: newEmail.value,
+        password: newPassword.value,
+        firstName: newFirstName.value,
+        lastName: newLastName.value,
+        phone: newPhone.value || undefined
+      }
+    )
     
     // Verileri yeniden yükle
     await doctorStore.fetchDoctors()
     
+    // Formu temizle
     newSpecialization.value = ''
     newDepartmentId.value = ''
     newLicenseNumber.value = ''
     newPhone.value = ''
     newEmail.value = ''
-    success.value = 'Doktor başarıyla eklendi.'
+    newFirstName.value = ''
+    newLastName.value = ''
+    newPassword.value = ''
     
-    // Success mesajını 3 saniye sonra kaldır
+    success.value = 'Doctor added successfully.'
+    
+    // Remove success message after 3 seconds
     setTimeout(() => {
       success.value = ''
     }, 3000)
   } catch (err: any) {
-    error.value = err.message || 'Doktor eklenirken hata oluştu.'
+    // Error handling is done in store, just display here
+    error.value = doctorStore.error || err.message || 'Error creating doctor.'
   }
 }
 
@@ -101,25 +133,25 @@ async function deleteDoctor() {
   
   try {
     if (hasRelatedPatients(confirmDeleteId.value!)) {
-      error.value = 'Bu doktora bağlı hasta var, silinemez!'
+      error.value = 'Cannot delete doctor with related patients!'
       confirmDeleteId.value = null
       return
     }
     
     await doctorStore.deleteDoctor(confirmDeleteId.value!)
     
-    // Verileri yeniden yükle
+    // Reload data
     await doctorStore.fetchDoctors()
     
-    success.value = 'Doktor başarıyla silindi.'
+    success.value = 'Doctor deleted successfully.'
     confirmDeleteId.value = null
     
-    // Success mesajını 3 saniye sonra kaldır
+    // Remove success message after 3 seconds
     setTimeout(() => {
       success.value = ''
     }, 3000)
   } catch (err: any) {
-    error.value = err.message || 'Doktor silinirken hata oluştu.'
+    error.value = err.message || 'Error deleting doctor.'
     confirmDeleteId.value = null
   }
 }
@@ -131,23 +163,32 @@ async function deleteDoctor() {
         <CardHeader><CardTitle>Doctor Management</CardTitle></CardHeader>
         <CardContent>
           <div class="space-y-3 mb-4">
+            <div class="text-sm font-medium text-gray-700 mb-2">User Information</div>
             <div class="flex gap-2">
-              <input v-model="newSpecialization" placeholder="Uzmanlık Alanı" class="border rounded px-2 py-1 focus:border-blue-400 flex-1" />
-              <input v-model="newLicenseNumber" placeholder="Lisans No" class="border rounded px-2 py-1 focus:border-blue-400" />
+              <input v-model="newFirstName" placeholder="First Name *" class="border rounded px-2 py-1 focus:border-blue-400 flex-1" />
+              <input v-model="newLastName" placeholder="Last Name *" class="border rounded px-2 py-1 focus:border-blue-400 flex-1" />
+            </div>
+            <div class="flex gap-2">
+              <input v-model="newEmail" placeholder="Email *" type="email" class="border rounded px-2 py-1 focus:border-blue-400 flex-1" />
+              <input v-model="newPassword" placeholder="Password *" type="password" class="border rounded px-2 py-1 focus:border-blue-400 flex-1" />
+            </div>
+            <div class="text-sm font-medium text-gray-700 mb-2 mt-4">Doctor Information</div>
+            <div class="flex gap-2">
+              <input v-model="newSpecialization" placeholder="Specialization *" class="border rounded px-2 py-1 focus:border-blue-400 flex-1" />
+              <input v-model="newLicenseNumber" placeholder="License Number *" class="border rounded px-2 py-1 focus:border-blue-400 flex-1" />
             </div>
             <div class="flex gap-2">
               <select v-model="newDepartmentId" class="border rounded px-2 py-1 focus:border-blue-400 flex-1">
-                <option value="">Departman Seçin</option>
+                <option value="">Select Department *</option>
                 <option v-for="dept in departmentStore.departments" :key="dept.id" :value="dept.id">
                   {{ dept.name }}
                 </option>
               </select>
-              <input v-model="newPhone" placeholder="Telefon" class="border rounded px-2 py-1 focus:border-blue-400" />
+              <input v-model="newPhone" placeholder="Phone" class="border rounded px-2 py-1 focus:border-blue-400 flex-1" />
             </div>
-            <div class="flex gap-2">
-              <input v-model="newEmail" placeholder="Email (opsiyonel)" type="email" class="border rounded px-2 py-1 focus:border-blue-400 flex-1" />
+            <div class="flex justify-end">
               <Button @click="addDoctor" :disabled="doctorStore.isLoading">
-                {{ doctorStore.isLoading ? 'Ekleniyor...' : 'Ekle' }}
+                {{ doctorStore.isLoading ? 'Adding...' : 'Add Doctor' }}
               </Button>
             </div>
           </div>
@@ -161,7 +202,7 @@ async function deleteDoctor() {
           <table class="w-full mt-2 text-sm border">
             <thead>
               <tr class="bg-gray-200">
-                <th>Uzmanlık</th><th>Departman</th><th>Lisans No</th><th>Telefon</th><th>İşlemler</th>
+                <th>Specialization</th><th>Department</th><th>License No</th><th>Phone</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -171,11 +212,11 @@ async function deleteDoctor() {
                 <td>{{ d.licenseNumber || '-' }}</td>
                 <td>{{ d.phone || '-' }}</td>
                 <td>
-                  <Button variant="ghost" color="danger" @click="askDelete(d.id)" :disabled="doctorStore.isLoading">Sil</Button>
+                  <Button variant="ghost" color="danger" @click="askDelete(d.id)" :disabled="doctorStore.isLoading">Delete</Button>
                 </td>
               </tr>
               <tr v-if="doctorStore.doctors.length === 0">
-                <td colspan="5" class="text-center py-4 text-gray-500">Henüz doktor eklenmemiş</td>
+                <td colspan="5" class="text-center py-4 text-gray-500">No doctors added yet</td>
               </tr>
             </tbody>
           </table>
